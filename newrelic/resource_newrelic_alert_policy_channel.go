@@ -24,9 +24,21 @@ func resourceNewRelicAlertPolicyChannel() *schema.Resource {
 				ForceNew: true,
 			},
 			"channel_id": {
-				Type:     schema.TypeInt,
-				Required: true,
-				ForceNew: true,
+				Type:          schema.TypeInt,
+				Optional:      true,
+				ForceNew:      true,
+				ConflictsWith: []string{"channel_ids"},
+				Deprecated:    "use `config` block instead",
+			},
+			"channel_ids": {
+				Type:          schema.TypeList,
+				Optional:      true,
+				ForceNew:      true,
+				MinItems:      1,
+				ConflictsWith: []string{"channel_id"},
+				Elem: &schema.Schema{
+					Type: schema.TypeInt,
+				},
 			},
 		},
 	}
@@ -35,23 +47,28 @@ func resourceNewRelicAlertPolicyChannel() *schema.Resource {
 func resourceNewRelicAlertPolicyChannelCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ProviderConfig).NewClient
 
+	log.Print("\n\n*******************\n\n")
+
 	policyID := d.Get("policy_id").(int)
 	channelID := d.Get("channel_id").(int)
+	channelIDs := d.Get("channel_ids").([]interface{})
 
-	serializedID := serializeIDs([]int{policyID, channelID})
+	ids := expandChannelIDs(channelIDs)
+
+	log.Printf("CHANNEL ID: %T - %+v", channelID, channelID)
+	log.Printf("CHANNEL IDs: %T - %+v", channelIDs, channelIDs)
+	log.Printf("CHANNEL EXP IDs: %T - %+v", ids, ids)
+
+	serializedID := serializeIDs(append([]int{policyID}, ids...))
 
 	log.Printf("[INFO] Creating New Relic alert policy channel %s", serializedID)
 
-	exists, err := policyChannelExists(client, policyID, channelID)
+	resp, err := client.Alerts.UpdatePolicyChannels(policyID, ids)
+
+	log.Printf("\n\n RESPONSE? %+v  \n\n", *resp)
+
 	if err != nil {
 		return err
-	}
-
-	if !exists {
-		_, err = client.Alerts.UpdatePolicyChannels(policyID, []int{channelID})
-		if err != nil {
-			return err
-		}
 	}
 
 	d.SetId(serializedID)

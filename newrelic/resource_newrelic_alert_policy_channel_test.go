@@ -21,14 +21,14 @@ func TestAccNewRelicAlertPolicyChannel_Basic(t *testing.T) {
 			{
 				Config: testAccNewRelicAlertPolicyChannelConfig(rName),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNewRelicAlertPolicyChannelExists("newrelic_alert_policy_channel.foo"),
+					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
 				),
 			},
 			// Test: Update
 			{
 				Config: testAccNewRelicAlertPolicyChannelConfigUpdated(rName),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNewRelicAlertPolicyChannelExists("newrelic_alert_policy_channel.foo"),
+					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
 				),
 			},
 			// Test: Import
@@ -79,6 +79,28 @@ func TestAccNewRelicAlertPolicyChannel_AlertChannelNotFound(t *testing.T) {
 				Config:    testAccNewRelicAlertPolicyChannelConfig(rName),
 				Check: resource.ComposeTestCheckFunc(
 					testAccCheckNewRelicAlertPolicyChannelExists("newrelic_alert_policy_channel.foo"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccNewRelicAlertPolicyChannel_MultipleChannels(t *testing.T) {
+	resourceName := "newrelic_alert_policy_channel.foo"
+	rName := acctest.RandString(5)
+
+	fmt.Print("\n\n\n *************** TESTING *************** \n\n\n")
+
+	resource.ParallelTest(t, resource.TestCase{
+		PreCheck:  func() { testAccPreCheck(t) },
+		Providers: testAccProviders,
+		// CheckDestroy: testAccCheckNewRelicAlertPolicyChannelDestroy,
+		Steps: []resource.TestStep{
+			// Test: Create
+			{
+				Config: testAccNewRelicAlertPolicyChannelConfigMultipleChannels(rName),
+				Check: resource.ComposeTestCheckFunc(
+					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
 				),
 			},
 		},
@@ -144,6 +166,16 @@ func testAccCheckNewRelicAlertPolicyChannelExists(n string) resource.TestCheckFu
 	}
 }
 
+func testAccNewRelicAlertPolicyChannelConfigMultipleChannels(name string) string {
+	return `
+resource "newrelic_alert_policy_channel" "foo" {
+	policy_id   = 617235
+	channel_id  = 3096125
+
+}
+`
+}
+
 func testAccNewRelicAlertPolicyChannelConfig(name string) string {
 	return fmt.Sprintf(`
 resource "newrelic_alert_policy" "foo" {
@@ -153,7 +185,7 @@ resource "newrelic_alert_policy" "foo" {
 resource "newrelic_alert_channel" "foo" {
   name = "%[1]s"
 	type = "email"
-	
+
 	config {
 		recipients = "terraform-acctest+foo@hashicorp.com"
 		include_json_attachment = "1"
@@ -176,7 +208,7 @@ resource "newrelic_alert_policy" "foo" {
 resource "newrelic_alert_channel" "foo" {
   name = "tf-test-updated-%[1]s"
 	type = "email"
-	
+
 	config {
 		recipients = "terraform-acctest+bar@hashicorp.com"
 		include_json_attachment = "0"

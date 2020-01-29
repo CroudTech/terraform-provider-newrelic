@@ -86,15 +86,13 @@ func TestAccNewRelicAlertPolicyChannel_AlertChannelNotFound(t *testing.T) {
 }
 
 func TestAccNewRelicAlertPolicyChannel_MultipleChannels(t *testing.T) {
-	resourceName := "newrelic_alert_policy_channel.foo"
+	resourceName := "newrelic_alert_policy_channel.test_policy_channel"
 	rName := acctest.RandString(5)
 
-	fmt.Print("\n\n\n *************** TESTING *************** \n\n\n")
-
 	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:  func() { testAccPreCheck(t) },
-		Providers: testAccProviders,
-		// CheckDestroy: testAccCheckNewRelicAlertPolicyChannelDestroy,
+		PreCheck:     func() { testAccPreCheck(t) },
+		Providers:    testAccProviders,
+		CheckDestroy: testAccCheckNewRelicAlertPolicyChannelDestroy,
 		Steps: []resource.TestStep{
 			// Test: Create
 			{
@@ -114,15 +112,16 @@ func testAccCheckNewRelicAlertPolicyChannelDestroy(s *terraform.State) error {
 			continue
 		}
 
-		ids, err := parseIDs(r.Primary.ID, 2)
+		ids, err := parseHashedIDs(r.Primary.ID)
 		if err != nil {
 			return err
 		}
 
 		policyID := ids[0]
-		channelID := ids[1]
+		channelIDs := ids[1:]
 
-		exists, err := policyChannelExists(client, policyID, channelID)
+		exists, err := policyChannelsExist(client, policyID, channelIDs)
+
 		if err != nil {
 			return err
 		}
@@ -146,18 +145,20 @@ func testAccCheckNewRelicAlertPolicyChannelExists(n string) resource.TestCheckFu
 
 		client := testAccProvider.Meta().(*ProviderConfig).NewClient
 
-		ids, err := parseIDs(rs.Primary.ID, 2)
+		ids, err := parseHashedIDs(rs.Primary.ID)
 		if err != nil {
 			return err
 		}
 
 		policyID := ids[0]
-		channelID := ids[1]
+		channelIDs := ids[1:]
 
-		exists, err := policyChannelExists(client, policyID, channelID)
+		exists, err := policyChannelsExist(client, policyID, channelIDs)
+
 		if err != nil {
 			return err
 		}
+
 		if !exists {
 			return fmt.Errorf("resource not found: %v", rs.Primary.ID)
 		}
@@ -167,13 +168,37 @@ func testAccCheckNewRelicAlertPolicyChannelExists(n string) resource.TestCheckFu
 }
 
 func testAccNewRelicAlertPolicyChannelConfigMultipleChannels(name string) string {
-	return `
-resource "newrelic_alert_policy_channel" "foo" {
-	policy_id   = 617235
-	channel_id  = 3096125
-
+	return fmt.Sprintf(`
+resource "newrelic_alert_policy" "test_policy" {
+	name = "tf_policy_channels_test"
 }
-`
+
+resource "newrelic_alert_channel" "channel_a" {
+	name = "%[1]s"
+	type = "email"
+	config {
+		recipients = "test@testing.com"
+		include_json_attachment = "1"
+	}
+}
+
+resource "newrelic_alert_channel" "channel_b" {
+	name = "%[1]s"
+	type = "email"
+	config {
+		recipients = "test@testing.com"
+		include_json_attachment = "1"
+	}
+}
+
+resource "newrelic_alert_policy_channel" "test_policy_channel" {
+	policy_id   = newrelic_alert_policy.test_policy.id
+	channel_ids = [
+		newrelic_alert_channel.channel_a.id,
+		newrelic_alert_channel.channel_b.id
+	]
+}
+`, name)
 }
 
 func testAccNewRelicAlertPolicyChannelConfig(name string) string {

@@ -68,14 +68,6 @@ func resourceNewRelicAlertPolicyChannelCreate(d *schema.ResourceData, meta inter
 
 	log.Printf("[INFO] Creating New Relic alert policy channel %s", serializedID)
 
-	// TODO: Check to see if we only want to add channels that don't exist
-	// on the policy already, or if we want do a full update which replaces
-	// what was there before. Should we ever remove a channel from a policy
-	// if it's removed with "update" or should we only add channels via update?
-	// Probably should be okay to remove and do a true full update instead of
-	// forcing the user to do a destroy, which is another issue as well if we
-	// need to destroy multiple channels on a policy.
-
 	_, err := client.Alerts.UpdatePolicyChannels(policyID, ids)
 
 	if err != nil {

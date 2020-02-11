@@ -101,6 +101,12 @@ func TestAccNewRelicAlertPolicyChannel_MultipleChannels(t *testing.T) {
 					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
 				),
 			},
+			// Test: Import
+			{
+				ResourceName:      resourceName,
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
 		},
 	})
 }

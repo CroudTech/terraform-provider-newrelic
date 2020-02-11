@@ -2,7 +2,6 @@ package newrelic
 
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/newrelic/newrelic-client-go/pkg/alerts"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -37,25 +37,15 @@ func TestParseHashedIDs_Basic(t *testing.T) {
 	expected := []int{1, 2, 3}
 	result, err := parseHashedIDs("1:2:3")
 
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if len(result) != 3 {
-		t.Fatal(len(result))
-	}
-
-	if reflect.DeepEqual(expected, result) == false {
-		t.Fatalf("expected %+v, received %+v", expected, result)
-	}
+	require.NoError(t, err)
+	require.Equal(t, 3, len(result))
+	require.Equal(t, expected, result)
 }
 
 func TestParseHashedIDs_Invalid(t *testing.T) {
 	_, err := parseHashedIDs("123:abc")
 
-	if err == nil {
-		t.Fatal("expected an error to occur due to invalid int ID `abc`")
-	}
+	require.Error(t, err)
 }
 
 func TestSerializeIDs_Basic(t *testing.T) {

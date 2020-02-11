@@ -2,7 +2,6 @@ package newrelic
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/newrelic/newrelic-client-go/pkg/alerts"
@@ -66,8 +65,6 @@ func expandNrqlConditionTerms(terms []interface{}) []alerts.ConditionTerm {
 }
 
 func flattenNrqlQuery(nrql alerts.NrqlQuery) []interface{} {
-	log.Printf("\n\nNRQL: %+v \n\n", nrql)
-
 	m := map[string]interface{}{
 		"query":       nrql.Query,
 		"since_value": nrql.SinceValue,
@@ -116,11 +113,9 @@ func flattenNrqlConditionStruct(condition *alerts.NrqlCondition, d *schema.Resou
 		d.Set("value_function", condition.ValueFunction)
 	}
 
-	nrqlQuery := flattenNrqlQuery(condition.Nrql)
-
-	log.Printf("\n\n Flattened NRQL query: %+v \n\n", nrqlQuery)
-
-	d.Set("nrql", nrqlQuery)
+	if err := d.Set("nrql", flattenNrqlQuery(condition.Nrql)); err != nil {
+		return err
+	}
 
 	terms := flattenNrqlConditionTerms(condition.Terms)
 

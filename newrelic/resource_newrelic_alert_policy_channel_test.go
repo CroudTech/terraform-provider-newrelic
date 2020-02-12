@@ -12,6 +12,7 @@ import (
 func TestAccNewRelicAlertPolicyChannel_Basic(t *testing.T) {
 	resourceName := "newrelic_alert_policy_channel.foo"
 	rName := acctest.RandString(5)
+
 	resource.ParallelTest(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
 		Providers:    testAccProviders,
@@ -21,7 +22,7 @@ func TestAccNewRelicAlertPolicyChannel_Basic(t *testing.T) {
 			{
 				Config: testAccNewRelicAlertPolicyChannelConfigNew(rName),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNewRelicAlertPolicyChannelExists("newrelic_alert_policy_channel.foo"),
+					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
 				),
 			},
 			// Test: Import

@@ -1,7 +1,6 @@
 package newrelic
 
 import (
-	"fmt"
 	"log"
 	"time"
 
@@ -20,8 +19,19 @@ func resourceNewRelicAlertPolicyChannel() *schema.Resource {
 			State: schema.ImportStatePassthrough,
 			// State: func(d *schema.ResourceData, data interface{}) ([]*schema.ResourceData, error) {
 			// 	log.Print("\n\n\n *********************** \n\n")
-			// 	log.Printf("IMPORT FUNCTION: %+v \n", d.Get("channel_id"))
-			// 	log.Printf("IMPORT DATA: %+v \n\n\n", data)
+
+			// 	channelID, channelIDOk := d.GetOk("channel_id")
+			// 	channelIDs, channelIDsOk := d.GetOk("channel_ids")
+			// 	channelIDExist, channelIDExistOk := d.GetOkExists("channel_id")
+			// 	channelIDsExist, channelIDsExistOk := d.GetOkExists("channel_ids")
+
+			// 	log.Printf("IMPORT channelIDOk:       %+v - %+v \n", channelIDOk, channelID)
+			// 	log.Printf("IMPORT channelIDsOk:      %+v - %+v \n\n", channelIDsOk, channelIDs)
+
+			// 	log.Printf("IMPORT channelIDExistOk:  %+v - %+v \n", channelIDExistOk, channelIDExist)
+			// 	log.Printf("IMPORT channelIDsExistOk: %+v - %+v \n\n", channelIDsExistOk, channelIDsExist)
+
+			// 	log.Print("\n\n\n *********************** \n\n\n")
 
 			// 	return []*schema.ResourceData{}, nil
 			// },
@@ -55,28 +65,23 @@ func resourceNewRelicAlertPolicyChannel() *schema.Resource {
 
 func resourceNewRelicAlertPolicyChannelCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*ProviderConfig).NewClient
+	policyChannels, err := expandAlertPolicyChannels(d)
 
-	policyID := d.Get("policy_id").(int)
-	channelID := d.Get("channel_id").(int)
-	channelIDs := d.Get("channel_ids").([]interface{})
-
-	if channelID == 0 && len(channelIDs) == 0 {
-		return fmt.Errorf("must provide channel_id or channel_ids for resource newrelic_alert_policy_channel")
+	if err != nil {
+		return err
 	}
 
-	var ids []int
-
-	if channelID != 0 {
-		ids = []int{channelID}
-	} else {
-		ids = expandChannelIDs(channelIDs)
-	}
-
-	serializedID := serializeIDs(append([]int{policyID}, ids...))
+	serializedID := serializeIDs(append(
+		[]int{policyChannels.ID},
+		policyChannels.ChannelIDs...,
+	))
 
 	log.Printf("[INFO] Creating New Relic alert policy channel %s", serializedID)
 
-	_, err := client.Alerts.UpdatePolicyChannels(policyID, ids)
+	_, err = client.Alerts.UpdatePolicyChannels(
+		policyChannels.ID,
+		policyChannels.ChannelIDs,
+	)
 
 	if err != nil {
 		return err
@@ -84,7 +89,7 @@ func resourceNewRelicAlertPolicyChannelCreate(d *schema.ResourceData, meta inter
 
 	d.SetId(serializedID)
 
-	return nil
+	return resourceNewRelicAlertPolicyChannelRead(d, meta)
 }
 
 func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interface{}) error {
@@ -101,13 +106,11 @@ func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interfa
 	log.Printf("[INFO] Reading New Relic alert policy channel %s", d.Id())
 
 	log.Print("\n\n\n *********************** \n\n")
-	log.Printf("STATE BEFORE: %+v \n", d.State())
-	log.Printf("IS NEW:       %+v \n", d.IsNewResource())
 
 	exists, err := policyChannelsExist(client, policyID, parsedChannelIDs)
 
-	log.Printf("EXISTS?: %+v \n", exists)
-	log.Printf("ERROR?: %+v \n", err)
+	log.Printf("EXISTS?:            %+v \n", exists)
+	log.Printf("ERROR?:             %+v \n", err)
 
 	if err != nil {
 		return err
@@ -122,20 +125,20 @@ func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interfa
 
 	channelID, channelIDOk := d.GetOk("channel_id")
 	channelIDs, channelIDsOk := d.GetOk("channel_ids")
+	channelIDExist, channelIDExistOk := d.GetOkExists("channel_id")
+	channelIDsExist, channelIDsExistOk := d.GetOkExists("channel_ids")
 
-	gotExists, gotOkExists := d.GetOkExists("channel_id")
-	hasChange := d.HasChange("channel_id")
+	log.Printf("channelIDOk:       %+v - %+v \n", channelIDOk, channelID)
+	log.Printf("channelIDsOk:      %+v - %+v \n\n", channelIDsOk, channelIDs)
 
-	log.Printf("hasChange:        %+v \n", hasChange)
-	log.Printf("gotExists:        %+v - %+v \n", gotOkExists, gotExists)
-	log.Printf("channelIDOk:      %+v - %+v \n", channelIDOk, channelID)
-	log.Printf("channelIDsOk:     %+v - %+v \n", channelIDsOk, channelIDs)
+	log.Printf("channelIDExistOk:  %+v - %+v \n", channelIDExistOk, channelIDExist)
+	log.Printf("channelIDsExistOk: %+v - %+v \n\n", channelIDsExistOk, channelIDsExist)
+
 	log.Printf("parsedChannelIDs: %+v - %+v \n", parsedChannelIDs, len(parsedChannelIDs))
-	log.Printf("SHOULD SET IDs:   %+v \n", channelIDsOk && len(parsedChannelIDs) > 0)
 
-	// if channelIDOk && len(parsedChannelIDs) == 1 {
-	// 	d.Set("channel_id", parsedChannelIDs[0])
-	// }
+	if channelIDOk && len(parsedChannelIDs) == 1 {
+		d.Set("channel_id", parsedChannelIDs[0])
+	}
 
 	if channelIDsOk && len(parsedChannelIDs) > 0 {
 		d.Set("channel_ids", parsedChannelIDs)
@@ -146,7 +149,6 @@ func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interfa
 	// 	d.Set("channel_ids", parsedChannelIDs)
 	// }
 
-	log.Printf("\n\nSTATE AFTER: %+v \n", d.State())
 	log.Print("\n\n *********************** \n\n")
 	time.Sleep(6 * time.Second)
 

@@ -19,16 +19,9 @@ func TestAccNewRelicAlertPolicyChannel_Basic(t *testing.T) {
 		Steps: []resource.TestStep{
 			// Test: Create
 			{
-				Config: testAccNewRelicAlertPolicyChannelConfig(rName),
+				Config: testAccNewRelicAlertPolicyChannelConfigNew(rName),
 				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
-				),
-			},
-			// Test: Update
-			{
-				Config: testAccNewRelicAlertPolicyChannelConfigUpdated(rName),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
+					testAccCheckNewRelicAlertPolicyChannelExists("newrelic_alert_policy_channel.foo"),
 				),
 			},
 			// Test: Import
@@ -85,32 +78,6 @@ func TestAccNewRelicAlertPolicyChannel_AlertChannelNotFound(t *testing.T) {
 	})
 }
 
-func TestAccNewRelicAlertPolicyChannel_MultipleChannels(t *testing.T) {
-	resourceName := "newrelic_alert_policy_channel.test_policy_channel"
-	rName := acctest.RandString(5)
-
-	resource.ParallelTest(t, resource.TestCase{
-		PreCheck:     func() { testAccPreCheck(t) },
-		Providers:    testAccProviders,
-		CheckDestroy: testAccCheckNewRelicAlertPolicyChannelDestroy,
-		Steps: []resource.TestStep{
-			// Test: Create
-			{
-				Config: testAccNewRelicAlertPolicyChannelConfigMultipleChannels(rName),
-				Check: resource.ComposeTestCheckFunc(
-					testAccCheckNewRelicAlertPolicyChannelExists(resourceName),
-				),
-			},
-			// Test: Import
-			{
-				ResourceName:      resourceName,
-				ImportState:       true,
-				ImportStateVerify: true,
-			},
-		},
-	})
-}
-
 func testAccCheckNewRelicAlertPolicyChannelDestroy(s *terraform.State) error {
 	client := testAccProvider.Meta().(*ProviderConfig).NewClient
 	for _, r := range s.RootModule().Resources {
@@ -118,16 +85,15 @@ func testAccCheckNewRelicAlertPolicyChannelDestroy(s *terraform.State) error {
 			continue
 		}
 
-		ids, err := parseHashedIDs(r.Primary.ID)
+		ids, err := parseIDs(r.Primary.ID, 2)
 		if err != nil {
 			return err
 		}
 
 		policyID := ids[0]
-		channelIDs := ids[1:]
+		channelID := ids[1]
 
-		exists, err := policyChannelsExist(client, policyID, channelIDs)
-
+		exists, err := policyChannelExists(client, policyID, channelID)
 		if err != nil {
 			return err
 		}
@@ -151,60 +117,24 @@ func testAccCheckNewRelicAlertPolicyChannelExists(n string) resource.TestCheckFu
 
 		client := testAccProvider.Meta().(*ProviderConfig).NewClient
 
-		ids, err := parseHashedIDs(rs.Primary.ID)
+		ids, err := parseIDs(rs.Primary.ID, 2)
 		if err != nil {
 			return err
 		}
 
 		policyID := ids[0]
-		channelIDs := ids[1:]
+		channelID := ids[1]
 
-		exists, err := policyChannelsExist(client, policyID, channelIDs)
-
+		exists, err := policyChannelExists(client, policyID, channelID)
 		if err != nil {
 			return err
 		}
-
 		if !exists {
 			return fmt.Errorf("resource not found: %v", rs.Primary.ID)
 		}
 
 		return nil
 	}
-}
-
-func testAccNewRelicAlertPolicyChannelConfigMultipleChannels(name string) string {
-	return fmt.Sprintf(`
-resource "newrelic_alert_policy" "test_policy" {
-	name = "tf_policy_channels_test"
-}
-
-resource "newrelic_alert_channel" "channel_a" {
-	name = "%[1]s"
-	type = "email"
-	config {
-		recipients = "test@testing.com"
-		include_json_attachment = "1"
-	}
-}
-
-resource "newrelic_alert_channel" "channel_b" {
-	name = "%[1]s"
-	type = "email"
-	config {
-		recipients = "test@testing.com"
-		include_json_attachment = "1"
-	}
-}
-
-resource "newrelic_alert_policy_channel" "test_policy_channel" {
-	policy_id   = newrelic_alert_policy.test_policy.id
-	channel_ids = [
-		newrelic_alert_channel.channel_a.id,
-		newrelic_alert_channel.channel_b.id
-	]
-}
-`, name)
 }
 
 func testAccNewRelicAlertPolicyChannelConfig(name string) string {
@@ -251,4 +181,26 @@ resource "newrelic_alert_policy_channel" "foo" {
   channel_id = newrelic_alert_channel.foo.id
 }
 `, rName)
+}
+
+func testAccNewRelicAlertPolicyChannelConfigNew(name string) string {
+	return fmt.Sprintf(`
+resource "newrelic_alert_policy" "foo" {
+  name = "tf-test-%[1]s"
+}
+resource "newrelic_alert_channel" "foo" {
+  name = "tf-test-%[1]s"
+	type = "email"
+	config {
+		recipients = "terraform-acctest+foo@hashicorp.com"
+		include_json_attachment = "1"
+	}
+}
+resource "newrelic_alert_policy_channel" "foo" {
+  policy_id  = newrelic_alert_policy.foo.id
+  channel_ids = [
+		newrelic_alert_channel.foo.id
+	]
+}
+`, name)
 }

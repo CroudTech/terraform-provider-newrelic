@@ -2,10 +2,10 @@ package newrelic
 
 import (
 	"log"
-	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 	"github.com/newrelic/newrelic-client-go/newrelic"
+	"github.com/newrelic/newrelic-client-go/pkg/alerts"
 	"github.com/newrelic/newrelic-client-go/pkg/errors"
 )
 
@@ -17,24 +17,6 @@ func resourceNewRelicAlertPolicyChannel() *schema.Resource {
 		Delete: resourceNewRelicAlertPolicyChannelDelete,
 		Importer: &schema.ResourceImporter{
 			State: schema.ImportStatePassthrough,
-			// State: func(d *schema.ResourceData, data interface{}) ([]*schema.ResourceData, error) {
-			// 	log.Print("\n\n\n *********************** \n\n")
-
-			// 	channelID, channelIDOk := d.GetOk("channel_id")
-			// 	channelIDs, channelIDsOk := d.GetOk("channel_ids")
-			// 	channelIDExist, channelIDExistOk := d.GetOkExists("channel_id")
-			// 	channelIDsExist, channelIDsExistOk := d.GetOkExists("channel_ids")
-
-			// 	log.Printf("IMPORT channelIDOk:       %+v - %+v \n", channelIDOk, channelID)
-			// 	log.Printf("IMPORT channelIDsOk:      %+v - %+v \n\n", channelIDsOk, channelIDs)
-
-			// 	log.Printf("IMPORT channelIDExistOk:  %+v - %+v \n", channelIDExistOk, channelIDExist)
-			// 	log.Printf("IMPORT channelIDsExistOk: %+v - %+v \n\n", channelIDsExistOk, channelIDsExist)
-
-			// 	log.Print("\n\n\n *********************** \n\n\n")
-
-			// 	return []*schema.ResourceData{}, nil
-			// },
 		},
 		Schema: map[string]*schema.Schema{
 			"policy_id": {
@@ -105,12 +87,7 @@ func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interfa
 
 	log.Printf("[INFO] Reading New Relic alert policy channel %s", d.Id())
 
-	log.Print("\n\n\n *********************** \n\n")
-
 	exists, err := policyChannelsExist(client, policyID, parsedChannelIDs)
-
-	log.Printf("EXISTS?:            %+v \n", exists)
-	log.Printf("ERROR?:             %+v \n", err)
 
 	if err != nil {
 		return err
@@ -123,18 +100,8 @@ func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interfa
 
 	d.Set("policy_id", policyID)
 
-	channelID, channelIDOk := d.GetOk("channel_id")
-	channelIDs, channelIDsOk := d.GetOk("channel_ids")
-	channelIDExist, channelIDExistOk := d.GetOkExists("channel_id")
-	channelIDsExist, channelIDsExistOk := d.GetOkExists("channel_ids")
-
-	log.Printf("channelIDOk:       %+v - %+v \n", channelIDOk, channelID)
-	log.Printf("channelIDsOk:      %+v - %+v \n\n", channelIDsOk, channelIDs)
-
-	log.Printf("channelIDExistOk:  %+v - %+v \n", channelIDExistOk, channelIDExist)
-	log.Printf("channelIDsExistOk: %+v - %+v \n\n", channelIDsExistOk, channelIDsExist)
-
-	log.Printf("parsedChannelIDs: %+v - %+v \n", parsedChannelIDs, len(parsedChannelIDs))
+	_, channelIDOk := d.GetOk("channel_id")
+	_, channelIDsOk := d.GetOk("channel_ids")
 
 	if channelIDOk && len(parsedChannelIDs) == 1 {
 		d.Set("channel_id", parsedChannelIDs[0])
@@ -144,13 +111,10 @@ func resourceNewRelicAlertPolicyChannelRead(d *schema.ResourceData, meta interfa
 		d.Set("channel_ids", parsedChannelIDs)
 	}
 
-	// // If importing resource, prefer `channel_ids` attribute
-	// if !channelIDOk && !channelIDsOk && len(parsedChannelIDs) > 0 {
-	// 	d.Set("channel_ids", parsedChannelIDs)
-	// }
-
-	log.Print("\n\n *********************** \n\n")
-	time.Sleep(6 * time.Second)
+	// Handle import (set `channel_ids` since this resource doesn't exist in state yet)
+	if !channelIDOk && !channelIDsOk {
+		d.Set("channel_ids", parsedChannelIDs)
+	}
 
 	return nil
 }
@@ -187,37 +151,51 @@ func resourceNewRelicAlertPolicyChannelDelete(d *schema.ResourceData, meta inter
 	return nil
 }
 
-func policyChannelExists(client *newrelic.NewRelic, policyID int, channelID int) (bool, error) {
-	channel, err := client.Alerts.GetChannel(channelID)
-	if err != nil {
-		if _, ok := err.(*errors.NotFound); ok {
-			return false, nil
-		}
+func policyChannelsExist(
+	client *newrelic.NewRelic,
+	policyID int,
+	channelIDs []int,
+) (bool, error) {
+	channels, err := client.Alerts.ListChannels()
 
+	if err != nil {
 		return false, err
 	}
 
-	for _, id := range channel.Links.PolicyIDs {
-		if id == policyID {
-			return true, nil
+	var foundChannels []*alerts.Channel
+	for _, id := range channelIDs {
+		ch := findChannel(channels, id)
+
+		if ch == nil {
+			return false, nil
 		}
+
+		foundChannels = append(foundChannels, ch)
+	}
+
+	var policyChannelsCount int
+	for _, channel := range foundChannels {
+		for _, id := range channel.Links.PolicyIDs {
+			if id == policyID {
+				policyChannelsCount++
+			}
+		}
+	}
+
+	// Ensure all channels exist on the policy
+	if policyChannelsCount == len(channelIDs) {
+		return true, nil
 	}
 
 	return false, nil
 }
 
-func policyChannelsExist(client *newrelic.NewRelic, policyID int, channelIDs []int) (bool, error) {
-	for _, id := range channelIDs {
-		channelExists, err := policyChannelExists(client, policyID, id)
-
-		if err != nil {
-			return false, err
-		}
-
-		if !channelExists {
-			return false, nil
+func findChannel(channels []*alerts.Channel, id int) *alerts.Channel {
+	for _, channel := range channels {
+		if channel.ID == id {
+			return channel
 		}
 	}
 
-	return true, nil
+	return nil
 }

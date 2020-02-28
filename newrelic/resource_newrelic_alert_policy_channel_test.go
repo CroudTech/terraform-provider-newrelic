@@ -92,9 +92,9 @@ func testAccCheckNewRelicAlertPolicyChannelDestroy(s *terraform.State) error {
 		}
 
 		policyID := ids[0]
-		channelID := ids[1]
+		channelIDs := ids[1:]
 
-		exists, err := policyChannelExists(client, policyID, channelID)
+		exists, err := policyChannelsExist(client, policyID, channelIDs)
 		if err != nil {
 			return err
 		}
@@ -124,9 +124,9 @@ func testAccCheckNewRelicAlertPolicyChannelExists(n string) resource.TestCheckFu
 		}
 
 		policyID := ids[0]
-		channelID := ids[1]
+		channelIDs := ids[1:]
 
-		exists, err := policyChannelExists(client, policyID, channelID)
+		exists, err := policyChannelsExist(client, policyID, channelIDs)
 		if err != nil {
 			return err
 		}
@@ -189,6 +189,7 @@ func testAccNewRelicAlertPolicyChannelConfigNew(name string) string {
 resource "newrelic_alert_policy" "foo" {
   name = "tf-test-%[1]s"
 }
+
 resource "newrelic_alert_channel" "foo" {
   name = "tf-test-%[1]s"
 	type = "email"
@@ -197,6 +198,7 @@ resource "newrelic_alert_channel" "foo" {
 		include_json_attachment = "1"
 	}
 }
+
 resource "newrelic_alert_policy_channel" "foo" {
   policy_id  = newrelic_alert_policy.foo.id
   channel_ids = [

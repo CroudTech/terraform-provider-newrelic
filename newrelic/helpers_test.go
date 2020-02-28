@@ -6,8 +6,6 @@ import (
 
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
-	"github.com/stretchr/testify/require"
-
 	"github.com/newrelic/newrelic-client-go/pkg/alerts"
 	"github.com/stretchr/testify/require"
 )
